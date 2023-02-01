@@ -1,0 +1,82 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: eoworkflow-
+  namespace: argo
+  labels:
+    workflows.argoproj.io/test: "true"
+  annotations:
+    workflows.argoproj.io/version: ">= 3.1.0"
+spec:
+  entrypoint: eoworkflow-tmpl
+  serviceAccountName: argo
+  templates:
+  - name: eoworkflow-tmpl
+    dag:
+      tasks:
+      - name: region-selector
+        template: region-selector-tmpl
+      - name: main
+        template: main
+        dependencies: [region-selector]
+        arguments:
+          parameters:
+          - name: area
+            value: "{{item}}"
+        # https://github.com/argoproj/argo-workflows/discussions/5740?sort=new
+        withParam: "{{tasks.region-selector.outputs.result}}"
+  - name: region-selector-tmpl
+    script:
+      image: python:alpine3.6
+      command: [python]
+      source: |
+        import json
+        import sys
+        json.dump(["Belgium","Denmark"], sys.stdout)
+  - name: main
+    volumes:
+    - name: workspace
+      emptyDir: { }
+    inputs:
+      parameters:
+      - name: area
+    containerSet:
+      volumeMounts:
+      - mountPath: /workspace
+        name: workspace
+      containers:
+      # last container to execute should be called "main"
+      - name: downloader
+        command: ["python3", "-d", "app.py"]
+        args: ["{{inputs.parameters.area}}"]
+        image: paultur/argodownloader
+        imagePullPolicy: Always
+        env:
+        - name: EODATAACCESSKEY
+          valueFrom:
+            secretKeyRef:
+              name: eoworkflow-secret
+              key: eodataAccessKey
+        - name: EODATASECRETKEY
+          valueFrom:
+            secretKeyRef:
+              name: eoworkflow-secret
+              key: eodataSecretKey
+      - name: main
+        command: ["python3", "-d", "app.py"]
+        args: ["{{inputs.parameters.area}}"]
+        image: paultur/argoprocessor
+        dependencies:
+          - downloader
+        imagePullPolicy: Always
+        env:
+        - name: PRIVATEACCESSKEY
+          valueFrom:
+            secretKeyRef:
+              name: eoworkflow-secret
+              key: privateAccessKey
+        - name: PRIVATESECRETKEY
+          valueFrom:
+            secretKeyRef:
+              name: eoworkflow-secret
+              key: privateSecretKey
