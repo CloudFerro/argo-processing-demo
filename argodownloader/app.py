@@ -13,7 +13,7 @@ try:
     #host="http://data.cloudferro.com"
     host = "https://s3.cloudferro.com"
     bucket_name = "DIAS"
-    api_address = "https://finder.creodias.eu/resto/api/collections/Sentinel2/search.json"
+    api_address = "https://finder.creodias.eu/oldresto/api/collections/Sentinel2/search.json"
     #e.g. https://finder.creodias.eu/resto/api/collections/Sentinel2/search.json?maxRecords=10&q=France&processingLevel=LEVEL2A&startDate=2022-07-01T00%3A00%3A00Z&completionDate=2022-07-01T2
     s3_resource = boto3.resource('s3', aws_access_key_id=access_key, aws_secret_access_key=secret_key, endpoint_url=host)
     s3_client = s3_resource.meta.client
@@ -27,7 +27,6 @@ try:
         'platform': 'S2A',
         'startDate': '2022-07-03T00:00:00Z',
         'completionDate': '2022-07-03T23:59:59Z',
-        # 'cloudCover': "[0,10]",
         'sortParam': 'startDate',
         'sortOrder': 'descending'
     }

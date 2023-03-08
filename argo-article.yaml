@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: workflow-
+  namespace: argo
+spec:
+  entrypoint: my-workflow
+  serviceAccountName: argo
+  templates:
+  - name: my-workflow
+    dag:
+      tasks:
+      - name: downloader
+        template: downloader-tmpl
+      - name: processor
+        template: processor-tmpl
+        dependencies: [downloader]
+  - name: downloader-tmpl
+    script:
+      image: python:alpine3.6
+      command: [python]
+      source: |
+        print("Files downloaded")
+  - name: processor-tmpl
+    script:
+      image: python:alpine3.6
+      command: [python]
+      source: |
+        print("Files processed")
