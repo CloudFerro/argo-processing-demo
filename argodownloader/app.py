@@ -2,16 +2,18 @@ import time
 import logging
 import sys
 import os
-import boto3
 import requests
 import traceback
+import boto3
+
+logging.basicConfig(level=logging.INFO)
 
 try:
     area = sys.argv[1]
     access_key = os.getenv("EODATAACCESSKEY")
     secret_key = os.getenv("EODATASECRETKEY")
-    #host="http://data.cloudferro.com"
-    host = "https://s3.cloudferro.com"
+    host="http://data.cloudferro.com"
+    #host = "https://s3.cloudferro.com"
     bucket_name = "DIAS"
     api_address = "https://finder.creodias.eu/oldresto/api/collections/Sentinel2/search.json"
     #e.g. https://finder.creodias.eu/resto/api/collections/Sentinel2/search.json?maxRecords=10&q=France&processingLevel=LEVEL2A&startDate=2022-07-01T00%3A00%3A00Z&completionDate=2022-07-01T2
@@ -34,8 +36,6 @@ try:
     response = requests.get(api_address, params=parameters)
     features = response.json()["features"]
 
-    logging.warning(features)
-
     # download SAFE product
     # https://stackoverflow.com/questions/49772151/download-a-folder-from-s3-using-boto3
     def download_s3_folder(bucket, s3_folder, local_dir=None):
@@ -50,13 +50,13 @@ try:
 
     for feature in features:
         product_path = feature["properties"]["productIdentifier"]
-        # print(product_path)
-        # /eodata/Sentinel-2/MSI/L2A/2022/07/01/S2B_MSIL2A_20220701T103629_N0400_R008_T32UNF_20220701T122344.SAFE
+        logging.info(product_path)
+        # e.g. /eodata/Sentinel-2/MSI/L2A/2022/07/01/S2B_MSIL2A_20220701T103629_N0400_R008_T32UNF_20220701T122344.SAFE
         prefix = product_path[8:]
         safe_folder = product_path[38:]
         download_s3_folder(bucket, prefix, local_dir= volume_path + safe_folder)
 
 except Exception as e:
-    logging.warning(traceback.format_exception(*sys.exc_info()))
+    logging.error(traceback.format_exception(*sys.exc_info()))
     time.sleep(90)
 

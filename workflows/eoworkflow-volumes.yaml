@@ -1,0 +1,141 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: eoworkflow-
+  namespace: argo
+  labels:
+    workflows.argoproj.io/test: "true"
+  annotations:
+    workflows.argoproj.io/version: ">= 3.1.0"
+spec:
+  entrypoint: eoworkflow-tmpl
+  serviceAccountName: argo
+  templates:
+  - name: eoworkflow-tmpl
+    dag:
+      tasks:
+      - name: region-selector
+        template: region-selector-tmpl
+      - name: subprocess
+        template: subprocess-tmpl
+        dependencies: [region-selector]
+        arguments:
+          parameters:
+          - name: area
+            value: "{{item}}"
+        withParam: "{{tasks.region-selector.outputs.result}}"
+  - name: region-selector-tmpl
+    script:
+      image: python:alpine3.6
+      command: [python]
+      source: |
+        import json
+        import sys
+        json.dump(["Denmark", "Italy"], sys.stdout)
+  - name: subprocess-tmpl
+    inputs:
+      parameters:
+        - name: area
+    steps:
+      - - name: volume-generator
+          template: volume-generator-tmpl
+          arguments:
+            parameters: 
+              - name: area
+                value: "{{inputs.parameters.area}}"
+      - - name: downloader
+          template: downloader-tmpl
+          arguments:
+            parameters: 
+              - name: area
+                value: "{{inputs.parameters.area}}"
+              - name: pvc-name
+                value: "{{steps.volume-generator.outputs.parameters.pvc-name}}"
+      - - name: processor
+          template: processor-tmpl
+          arguments:
+            parameters: 
+              - name: area
+                value: "{{inputs.parameters.area}}"
+              - name: pvc-name
+                value: "{{steps.volume-generator.outputs.parameters.pvc-name}}"
+  - name: volume-generator-tmpl
+    inputs:
+      parameters:
+        - name: area
+    resource:
+      action: create
+      setOwnerReference: true
+      manifest: |
+        apiVersion: v1
+        kind: PersistentVolumeClaim
+        metadata:
+          generateName: pvc-example-
+        spec:
+          accessModes: ['ReadWriteOnce']
+          resources:
+            requests:
+              storage: 12Gi
+    outputs:
+      parameters:
+        - name: pvc-name
+          valueFrom:
+            jsonPath: '{.metadata.name}'
+  - name: downloader-tmpl
+    inputs:
+      parameters:
+        - name: area
+          type: "string"
+        - name: pvc-name
+          type: "string"
+    volumes:
+    - name: workspace
+      persistentVolumeClaim:
+        claimName: '{{inputs.parameters.pvc-name}}'
+    container:
+      command: ["python3", "-d", "app.py"]
+      args: ["{{inputs.parameters.area}}"]
+      image: cfro/argodownloader-demo
+      volumeMounts:
+      - mountPath: /workspace
+        name: workspace
+      imagePullPolicy: Always
+      env:
+      - name: EODATAACCESSKEY
+        valueFrom:
+          secretKeyRef:
+            name: eoworkflow-secret
+            key: eodataAccessKey
+      - name: EODATASECRETKEY
+        valueFrom:
+          secretKeyRef:
+            name: eoworkflow-secret
+            key: eodataSecretKey
+  - name: processor-tmpl
+    inputs: 
+      parameters:
+      - name: area
+      - name: pvc-name
+    volumes:
+    - name: workspace
+      persistentVolumeClaim:
+        claimName: '{{inputs.parameters.pvc-name}}'
+    container:
+      command: ["python3", "-d", "app.py"]
+      args: ["{{inputs.parameters.area}}"]
+      image: cfro/argoprocessor-demo
+      volumeMounts:
+        - mountPath: /workspace
+          name: workspace
+      imagePullPolicy: Always
+      env:
+      - name: PRIVATEACCESSKEY
+        valueFrom:
+          secretKeyRef:
+            name: eoworkflow-secret
+            key: privateAccessKey
+      - name: PRIVATESECRETKEY
+        valueFrom:
+          secretKeyRef:
+            name: eoworkflow-secret
+            key: privateSecretKey
