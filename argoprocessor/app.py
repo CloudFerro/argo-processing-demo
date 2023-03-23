@@ -6,6 +6,8 @@ import logging
 import time
 import traceback
 import sys
+import random
+import string
 
 logging.basicConfig(level=logging.INFO)
 
@@ -20,8 +22,10 @@ try:
     s3_resource = boto3.resource('s3', aws_access_key_id=access_key, aws_secret_access_key=secret_key, endpoint_url=host)
     s3_client = s3_resource.meta.client
 
-    # Modify bucket name patter (!). Buckets on WAW3-1 cloud need to have unique names across all users. 
-    private_bucket_name = 'argoprocessing_CF_' + area + "_" + datetime.now().strftime('%Y-%m-%d')
+    # Bucket name suffix randomized, buckets on WAW3-1 cloud need to have unique names across all users
+    letters = string.ascii_letters
+    random_letters = (''.join(random.choice(letters) for i in range(8)) )
+    private_bucket_name = 'argoprocessing_CF_' + area + "_" + datetime.now().strftime('%Y-%m-%d') + "_" + random_letters
     s3_client.create_bucket(Bucket=private_bucket_name)
 
     for safe_folder in os.listdir(volume_path):
